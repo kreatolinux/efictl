@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# efictl - boot configuration tool for kreato linux
+# Copyright 2022 Kreato
+#
+# This file is part of Kreato Linux.
+#
+# Kreato Linux is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Kreato Linux is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Kreato Linux.  If not, see <https://www.gnu.org/licenses/>.
+import configparser
+import subprocess
+import argparse
+import shutil
+import os
+
+parser = argparse.ArgumentParser(description='Boot configuration tool.')
+parser.add_argument('-c', '--config', action='store', help='Custom config path (defaults to /etc/efictl/configs)')
+parser.add_argument('-u', '--update', action='store_true', help='Update the bootloader') 
+parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output') 
+parser.add_argument('-V', '--version', action='version', version='efictl v1a')
+
+def printv(message):
+    if args.verbose == True:
+        print("VERBOSE: "+message)
+
+args = parser.parse_args()
+config = configparser.ConfigParser()
+path = "./examples" # Will be changed to /etc/efictl on release
+
+if args.config != None:
+    if os.path.isdir(args.config) == True:
+        path = args.config # Change path to args.config
+        printv("config path: "+path)
+        config.read(path+"/boot.ini")
+        printv("config read from "+path+"/boot.ini")
+else:
+    printv("config path: "+path)
+    config.read(path+"/boot.ini")
+    printv("config read from "+path+"/boot.ini")
+    vmlinuz = config["Boot"]["LoaderPath"]
+    if config.has_option("Boot", "BootArgs") == True:
+        kernelargs = config["Boot"]["BootArgs"]
+    else:
+        rootpart = subprocess.run(["findmnt", "/", "-o", "SOURCE", "-n"], capture_output=True).stdout.decode('ascii')
+        kernelargs = "root="+rootpart+" rw "
+
+    printv("kernelargs: "+kernelargs)
+    cmd = [ "efibootmgr", "--create", "--disk", config["Boot"]["EfiDisk"], "--part", config["Boot"]["EfiPart"], "--label", '"Kreato Linux"', "--loader", vmlinuz, "--unicode", "'"+kernelargs+"'"]
+    printv("cmd: "+' '.join(cmd))
+
+    if shutil.which("efibootmgr") == None:
+        raise Exception("efibootmgr cannot be found on PATH")
+    
+    command = subprocess.run(cmd)
+    print("'"+' '.join(cmd)+"'"+" exited with code "+command.returncode)
