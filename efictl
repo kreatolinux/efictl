@@ -61,4 +61,3 @@ else:
         raise Exception("efibootmgr cannot be found on PATH")
     
     command = subprocess.run(cmd)
-    print("'"+' '.join(cmd)+"'"+" exited with code "+command.returncode)
